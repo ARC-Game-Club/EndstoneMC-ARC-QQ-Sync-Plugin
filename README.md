@@ -1,4 +1,6 @@
 # ARC QQ Sync (AstrBot Version)
+[![Codacy Grade](https://app.codacy.com/project/badge/Grade/1854ca1168f84d409f4b3ca7a808d1f8)](https://app.codacy.com/gh/ARC-Minecraft/EndstoneMC-ARC-QQ-Sync-Plugin/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+
 
 Endstone 服务器端 QQ 互通插件，通过 **AstrBot 弧光 EndStone 消息中枢** 实现跨设备群服消息与指令联动。
 
