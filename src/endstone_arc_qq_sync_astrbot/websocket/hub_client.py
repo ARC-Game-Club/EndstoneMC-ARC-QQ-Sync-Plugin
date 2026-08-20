@@ -204,6 +204,9 @@ class HubClient:
         elif msg_type == "restart_vote_execute_stop":
             await self._handle_restart_vote_execute_stop()
 
+        elif msg_type == "core_rpc":
+            await self._handle_core_rpc(data)
+
         elif msg_type == "data_rpc_response":
             rid = data.get("request_id")
             fut = self._pending_rpc.get(rid)
@@ -371,6 +374,47 @@ class HubClient:
         except Exception as e:
             self.logger.warning(f"回复在线玩家查询失败: {e}")
 
+    async def _handle_core_rpc(self, data: dict) -> None:
+        """Respond to Hub core_rpc (arc_core lookups via QQ Sync, not AI Helper)."""
+        if not self.ws:
+            return
+        request_id = data.get("request_id")
+        if not request_id:
+            return
+        action = str(data.get("action") or "").strip()
+        args = data.get("args") or {}
+        loop = asyncio.get_running_loop()
+        try:
+            if action == "player_basic_info":
+                result = await loop.run_in_executor(
+                    None,
+                    self._run_core_rpc_player_basic_info,
+                    args,
+                )
+            else:
+                result = {"ok": False, "error": f"未知 core_rpc 动作: {action}"}
+        except Exception as error:
+            result = {"ok": False, "error": str(error)}
+        payload = {
+            "type": "core_rpc_response",
+            "request_id": request_id,
+            "ok": bool(result.get("ok")),
+        }
+        if result.get("ok"):
+            payload["result"] = result
+        else:
+            payload["error"] = str(result.get("error") or "core_rpc 失败")
+        try:
+            await self.ws.send(json.dumps(payload, ensure_ascii=False))
+        except Exception as error:
+            self.logger.warning(f"回复 core_rpc 失败: {error}")
+
+    def _run_core_rpc_player_basic_info(self, args: dict) -> dict:
+        player_name = str(args.get("player_name") or "").strip()
+        return self.plugin.run_on_server_thread(
+            lambda: self.plugin.lookup_player_basic_info(player_name)
+        )
+
     async def _handle_restart_vote_execute_stop(self) -> None:
         """Hub 投票通过后在本机执行 stop。"""
         try:
@@ -385,9 +429,6 @@ class HubClient:
         raw_message = data.get("raw_message", "")
         command_line = data.get("command_line") or raw_message
         target_sid = data.get("target_server_id")
-        user_id = data.get("user_id")
-        display_name = data.get("display_name", "")
-        group_id = data.get("group_id")
         silent = bool(data.get("silent"))
 
         if not raw_message or not raw_message.startswith("/"):
@@ -402,41 +443,51 @@ class HubClient:
             return
 
         try:
-            from .handlers import _handle_group_command
-
-            # 创建一个 mock ws 来捕获回复内容
-            captured_replies = []
-
-            class MockWS:
-                async def send(self, msg):
-                    import json
-                    try:
-                        data = json.loads(msg)
-                        if data.get("action") == "send_group_msg":
-                            captured_replies.append(data.get("params", {}).get("message", ""))
-                    except Exception:
-                        pass
-
-            mock_ws = MockWS()
-            sender = {"role": data.get("sender_role", "member")}
-            await _handle_group_command(
-                mock_ws,
-                user_id,
-                command_line,
-                display_name,
-                group_id,
-                sender=sender,
-                is_config_admin=bool(data.get("is_config_admin")),
+            loop = asyncio.get_running_loop()
+            replies = await loop.run_in_executor(
+                None,
+                self._run_forwarded_group_command,
+                data,
             )
-
-            # 将捕获的回复通过 Hub 发送到 QQ 群（回复已包含服务器名前缀）
             if silent:
                 return
-            for reply in captured_replies:
+            for reply in replies:
                 if reply:
                     await self.send_api_message(reply)
         except Exception as e:
             self.logger.error(f"处理转发命令失败: {e}")
+
+    def _run_forwarded_group_command(self, data: dict) -> list[str]:
+        """在工作线程执行群指令，避免同步 data_rpc 卡住 Hub 收包循环。"""
+        return asyncio.run(self._execute_forwarded_group_command(data))
+
+    async def _execute_forwarded_group_command(self, data: dict) -> list[str]:
+        from .handlers import _handle_group_command
+
+        captured_replies: list[str] = []
+
+        class MockWS:
+            async def send(self, msg):
+                import json
+                try:
+                    payload = json.loads(msg)
+                    if payload.get("action") == "send_group_msg":
+                        captured_replies.append(payload.get("params", {}).get("message", ""))
+                except Exception:
+                    pass
+
+        mock_ws = MockWS()
+        sender = {"role": data.get("sender_role", "member")}
+        await _handle_group_command(
+            mock_ws,
+            data.get("user_id"),
+            data.get("command_line") or data.get("raw_message", ""),
+            data.get("display_name", ""),
+            data.get("group_id"),
+            sender=sender,
+            is_config_admin=bool(data.get("is_config_admin")),
+        )
+        return [text for text in captured_replies if text]
 
     async def send_set_group_card(self, user_id, card: str) -> None:
         """Request AstrBot hub to set QQ group card for bound players."""

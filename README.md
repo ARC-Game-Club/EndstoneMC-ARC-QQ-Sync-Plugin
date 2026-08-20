@@ -6,7 +6,7 @@ Endstone 服务器端 QQ 互通插件，通过 **AstrBot 弧光 EndStone 消息�
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-green.svg)
-![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
 
 仓库：[ARC-Minecraft/EndstoneMC-ARC-QQ-Sync-Plugin](https://github.com/ARC-Minecraft/EndstoneMC-ARC-QQ-Sync-Plugin)
 
@@ -43,7 +43,7 @@ AstrBot 插件「弧光EndStone消息中枢」（WebSocket，默认 :19136）
    进服 / 离服 / 聊天等由本插件上报至中枢；QQ ↔ 游戏由中枢双向转发；跨子服事件由中枢扇出。
 
 2. **指令响应**  
-   群内使用 `/mc help`、`/mc list`、`/mc cmd …` 等；中枢剥掉 `/mc` 后下发本插件（内部仍为 `/help`、`/list`、`/cmd`），避免与 AstrBot 自带指令冲突。
+   群内使用 `/mc help`、`/mc list`、`/mc cmd …` 等；中枢剥掉 `/mc` 后下发本插件（内部仍为 `/help`、`/list`、`/cmd`），避免与 AstrBot 自带指令冲突。`/mc 绑定` 由中枢本地处理，不再广播到所有子服。
 
 3. **QQ 绑定**  
    游戏内绑定 / 解绑 / 查询；数据经 data_rpc 读写 AstrBot 中枢。
@@ -66,7 +66,7 @@ AstrBot 插件「弧光EndStone消息中枢」（WebSocket，默认 :19136）
 ~/bedrock_server/plugins/
 ```
 
-包名：`endstone-arc-qq-sync-astrbot`（版本 `1.0.1`）
+包名：`endstone-arc-qq-sync-astrbot`（版本 `1.0.3`）
 
 ## 配置
 
@@ -147,6 +147,12 @@ AstrBot 中枢侧需配置：`ws_port=19136`、`target_groups`、`admins`、`syn
 - [x] 全面切换为 AstrBot + 弧光消息中心对接
 - [x] 跨服 QQ 中继移出 ARCCore，由消息中心扇出
 - [x] 玩家时长 / 次数迁至 ARCCore SQLite；绑定权威在 AstrBot
+- [x] Hub `core_rpc`：群内 `/mc 绑定` 经本插件调弧光核心 `player_basic_info`（不经 AI Helper）
+
+## 更新日志
+
+- **1.0.3**：新增 Hub → 本插件 `core_rpc`（`player_basic_info`），供中枢绑定解析跨服玩家库。需中枢 ≥ 1.7.4。
+- **1.0.2**：配合中枢本地处理 `/mc 绑定`，避免 data_rpc 堵死心跳。
 
 ## 致谢
 

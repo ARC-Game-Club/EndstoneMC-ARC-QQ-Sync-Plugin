@@ -86,6 +86,15 @@ class DataManager:
         loop = getattr(self._plugin, "_loop", None)
         if not client or not loop:
             raise RuntimeError("Hub 客户端未就绪")
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is loop:
+            raise RuntimeError(
+                f"禁止在 Hub 事件循环上同步等待 data_rpc({action})，"
+                "会卡住收包/心跳并把所有连接踢掉"
+            )
         fut = asyncio.run_coroutine_threadsafe(client.data_rpc(action, args or {}), loop)
         return fut.result(timeout=125)
 

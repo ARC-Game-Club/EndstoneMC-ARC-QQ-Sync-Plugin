@@ -1,8 +1,10 @@
 import asyncio
 import json
+import queue
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 from endstone.plugin import Plugin
 from endstone import ColorFormat
@@ -387,6 +389,62 @@ class ArcQQSyncAstrbot(Plugin):
         except Exception as e:
             self.logger.debug(f"get_player_stats via ARCCore failed: {e}")
         return empty
+
+    def lookup_player_basic_info(self, player_name: str) -> dict[str, Any]:
+        """Resolve a player via arc_core cross-server APIs (shared player_basic_info)."""
+        name = str(player_name or "").strip()
+        if not name:
+            return {"ok": False, "error": "玩家名为空"}
+        try:
+            arc = self.server.plugin_manager.get_plugin("arc_core")
+        except Exception:
+            arc = None
+        if arc is None:
+            return {"ok": False, "error": "本服未安装弧光核心 arc_core"}
+        getter = getattr(arc, "api_get_player_xuid_by_name", None)
+        if not callable(getter):
+            return {"ok": False, "error": "弧光核心版本过旧，没有玩家解析接口"}
+        xuid = getter(name)
+        if not xuid:
+            return {"ok": False, "error": "找不到该玩家"}
+        xuid = str(xuid).strip()
+        playtime: dict[str, Any] = {}
+        playtime_api = getattr(arc, "api_get_player_playtime", None)
+        if callable(playtime_api):
+            raw = playtime_api(raw_player_name=name, xuid=xuid)
+            if isinstance(raw, dict):
+                playtime = raw
+        canon = name
+        name_api = getattr(arc, "api_get_player_name_by_xuid", None)
+        if callable(name_api):
+            canon = str(name_api(xuid) or name).strip() or name
+        return {
+            "ok": True,
+            "player_name": canon,
+            "xuid": xuid,
+            "session_count": int(playtime.get("session_count") or 0),
+            "total_playtime": int(playtime.get("total_playtime") or 0),
+            "is_online": bool(playtime.get("is_online")),
+        }
+
+    def run_on_server_thread(self, func, timeout: float = 10):
+        """Run a callable on the Endstone server thread and wait for the result."""
+        result_queue: queue.Queue = queue.Queue()
+
+        def _task():
+            try:
+                result_queue.put((True, func()))
+            except Exception as error:
+                result_queue.put((False, error))
+
+        self.server.scheduler.run_task(self, _task, 0, 0)
+        try:
+            ok, payload = result_queue.get(block=True, timeout=timeout)
+        except queue.Empty as error:
+            raise TimeoutError("服务器主线程执行超时") from error
+        if not ok:
+            raise payload
+        return payload
 
     def _format_event_message(self, event_type: str, display_name: str,
                               raw_player_name: str, message: str,
