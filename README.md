@@ -83,7 +83,7 @@ AstrBot 插件「弧光EndStone消息中枢」（WebSocket，默认 :19136）
   "hub_host": "127.0.0.1",
   "hub_port": 19136,
   "hub_token": "",
-  "server_name": "弧光基岩重塑服务器"
+  "server_name": "弧光冒险模拟生活服务器"
 }
 ```
 
