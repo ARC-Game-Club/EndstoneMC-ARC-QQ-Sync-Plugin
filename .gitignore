@@ -2,3 +2,9 @@ build.cmd
 /.idea/
 __pycache__/
 *.py[cod]
+
+# dist/: track latest *.whl only; ignore other packaging artifacts
+dist/*.tar.gz
+dist/*.tar.bz2
+dist/*.zip
+dist/*.egg
