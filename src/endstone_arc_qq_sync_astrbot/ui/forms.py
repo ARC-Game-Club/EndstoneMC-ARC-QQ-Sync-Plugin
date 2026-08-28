@@ -72,43 +72,58 @@ class UIManager:
                 player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}请输入有效的QQ号（5-11位数字）！{ColorFormat.RESET}")
                 return
 
-            # 检查玩家是否被封禁
-            if self.plugin.data_manager.is_player_banned(player.name):
-                player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}[拒绝] 您已被封禁，无法绑定QQ！{ColorFormat.RESET}")
-                player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.YELLOW}如有疑问请联系管理员{ColorFormat.RESET}")
-                return
-
-            # 检查QQ号是否已被其他玩家绑定
-            existing_player = self.plugin.data_manager.get_qq_player(qq_input)
-            if existing_player:
-                player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}该QQ号已被玩家 {existing_player} 绑定！{ColorFormat.RESET}")
-                return
-
             # 群成员校验依赖中心侧能力；子服本地缓存为空时跳过
             if self.plugin.group_members and qq_input not in self.plugin.group_members:
                 player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}该QQ号未加入QQ群，无法绑定！{ColorFormat.RESET}")
                 player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.YELLOW}请先加入QQ群后再试{ColorFormat.RESET}")
                 return
 
-            # 直接绑定
-            if self.plugin.data_manager.bind_player_qq(player.name, player.xuid, qq_input):
-                # 发送成功消息给玩家
-                player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.GREEN}[成功] QQ绑定成功！{ColorFormat.RESET}")
-                player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.AQUA}您的QQ {qq_input} 已与游戏账号绑定{ColorFormat.RESET}")
+            plugin = self.plugin
+            player_name = player.name
+            player_xuid = player.xuid
 
-                # 通过消息中心播报绑定成功
-                client = getattr(self.plugin, "_hub_client", None)
-                if client and getattr(self.plugin, "_loop", None):
-                    text = (
-                        f"[{self.plugin.server_name}]\n"
-                        f"玩家 {player.name} 已成功绑定 QQ {qq_input}！"
-                    )
-                    asyncio.run_coroutine_threadsafe(
-                        client.send_api_message(text),
-                        self.plugin._loop,
-                    )
-            else:
+            def _bind():
+                if plugin.data_manager.is_player_banned(player_name):
+                    return ("banned", None)
+                existing_player = plugin.data_manager.get_qq_player(qq_input)
+                if existing_player:
+                    return ("exists", existing_player)
+                ok = plugin.data_manager.bind_player_qq(player_name, player_xuid, qq_input)
+                return ("ok" if ok else "fail", None)
+
+            def _after(result):
+                if not self._is_valid_player(player):
+                    return
+                kind, extra = result
+                if kind == "banned":
+                    player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}[拒绝] 您已被封禁，无法绑定QQ！{ColorFormat.RESET}")
+                    player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.YELLOW}如有疑问请联系管理员{ColorFormat.RESET}")
+                    return
+                if kind == "exists":
+                    player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}该QQ号已被玩家 {extra} 绑定！{ColorFormat.RESET}")
+                    return
+                if kind == "ok":
+                    player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.GREEN}[成功] QQ绑定成功！{ColorFormat.RESET}")
+                    player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.AQUA}您的QQ {qq_input} 已与游戏账号绑定{ColorFormat.RESET}")
+                    client = getattr(plugin, "_hub_client", None)
+                    if client and getattr(plugin, "_loop", None):
+                        text = (
+                            f"[{plugin.server_name}]\n"
+                            f"玩家 {player_name} 已成功绑定 QQ {qq_input}！"
+                        )
+                        asyncio.run_coroutine_threadsafe(
+                            client.send_api_message(text),
+                            plugin._loop,
+                        )
+                    return
                 player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}绑定失败，请重试！{ColorFormat.RESET}")
+
+            def _on_error(error):
+                self.logger.error(f"处理QQ绑定表单失败: {error}")
+                if self._is_valid_player(player):
+                    player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}绑定过程出错，请重试！{ColorFormat.RESET}")
+
+            plugin.run_off_server_thread(_bind, callback=_after, on_error=_on_error)
 
         except Exception as e:
             self.logger.error(f"处理QQ绑定表单失败: {e}")

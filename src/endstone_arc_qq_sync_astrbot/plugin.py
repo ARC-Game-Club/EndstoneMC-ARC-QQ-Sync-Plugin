@@ -53,6 +53,9 @@ class ArcQQSyncAstrbot(Plugin):
     def on_enable(self) -> None:
         """插件启用"""
         try:
+            self._server_thread_id = threading.get_ident()
+            self._stats_cache: dict[str, tuple[float, dict]] = {}
+            self._stats_cache_ttl = 10.0
             # 初始化管理器
             self._init_managers()
 
@@ -382,13 +385,62 @@ class ArcQQSyncAstrbot(Plugin):
             "last_join_time": None,
             "last_quit_time": None,
         }
+        name = str(raw_player_name or "").strip()
+        if not name:
+            return empty
+        now = time.time()
+        cached = getattr(self, "_stats_cache", None)
+        if isinstance(cached, dict):
+            hit = cached.get(name)
+            if hit and now - hit[0] < float(getattr(self, "_stats_cache_ttl", 10.0)):
+                return dict(hit[1])
         try:
             arc = self.server.plugin_manager.get_plugin("arc_core")
             if arc is not None and hasattr(arc, "api_get_player_playtime"):
-                return arc.api_get_player_playtime(raw_player_name=raw_player_name) or empty
+                stats = arc.api_get_player_playtime(raw_player_name=name) or empty
+            else:
+                stats = empty
         except Exception as e:
             self.logger.debug(f"get_player_stats via ARCCore failed: {e}")
-        return empty
+            stats = empty
+        if isinstance(cached, dict):
+            cached[name] = (now, dict(stats))
+            if len(cached) > 256:
+                oldest = min(cached.items(), key=lambda kv: kv[1][0])[0]
+                cached.pop(oldest, None)
+        return stats
+
+    def run_off_server_thread(self, func, callback=None, on_error=None):
+        """在后台线程跑阻塞 RPC，结果再投回主线程。"""
+
+        def _worker():
+            try:
+                result = func()
+            except Exception as error:
+                if on_error is None:
+                    self.logger.warning(f"后台任务失败: {error}")
+                    return
+
+                def _err():
+                    on_error(error)
+
+                try:
+                    self.server.scheduler.run_task(self, _err, delay=0)
+                except Exception:
+                    on_error(error)
+                return
+            if callback is None:
+                return
+
+            def _cb():
+                callback(result)
+
+            try:
+                self.server.scheduler.run_task(self, _cb, delay=0)
+            except Exception:
+                callback(result)
+
+        threading.Thread(target=_worker, daemon=True, name="QQSync-OffMain").start()
 
     def lookup_player_basic_info(self, player_name: str) -> dict[str, Any]:
         """Resolve a player via arc_core cross-server APIs (shared player_basic_info)."""

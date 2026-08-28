@@ -6,7 +6,7 @@ Endstone 服务器端 QQ 互通插件，通过 **AstrBot 弧光 EndStone 消息�
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-green.svg)
-![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)
 
 仓库：[ARC-Minecraft/EndstoneMC-ARC-QQ-Sync-Plugin](https://github.com/ARC-Minecraft/EndstoneMC-ARC-QQ-Sync-Plugin)
 
@@ -151,6 +151,7 @@ AstrBot 中枢侧需配置：`ws_port=19136`、`target_groups`、`admins`、`syn
 
 ## 更新日志
 
+- **1.0.4**：主线程不再同步等待 Hub `data_rpc`（超时 3s，进服/绑定改后台）；聊天统计缓存；`/info` CPU 非阻塞采样。
 - **1.0.3**：新增 Hub → 本插件 `core_rpc`（`player_basic_info`），供中枢绑定解析跨服玩家库。需中枢 ≥ 1.7.4。
 - **1.0.2**：配合中枢本地处理 `/mc 绑定`，避免 data_rpc 堵死心跳。
 

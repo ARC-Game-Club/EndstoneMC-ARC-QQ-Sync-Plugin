@@ -5,6 +5,7 @@
 
 import asyncio
 import json
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -79,6 +80,15 @@ class DataManager:
     def _use_remote(self) -> bool:
         return self._remote_data_mode
 
+    _RPC_TIMEOUT = 3.0
+
+    def _on_server_thread(self) -> bool:
+        plugin = self._plugin
+        if plugin is None:
+            return False
+        tid = getattr(plugin, "_server_thread_id", None)
+        return tid is not None and threading.get_ident() == tid
+
     def _rpc(self, action: str, args: Optional[Dict[str, Any]] = None) -> Any:
         if not self._plugin:
             raise RuntimeError("DataManager 未关联插件，无法访问 Hub")
@@ -86,6 +96,10 @@ class DataManager:
         loop = getattr(self._plugin, "_loop", None)
         if not client or not loop:
             raise RuntimeError("Hub 客户端未就绪")
+        if self._on_server_thread():
+            raise RuntimeError(
+                f"禁止在游戏主线程同步等待 data_rpc({action})"
+            )
         try:
             running = asyncio.get_running_loop()
         except RuntimeError:
@@ -96,9 +110,12 @@ class DataManager:
                 "会卡住收包/心跳并把所有连接踢掉"
             )
         fut = asyncio.run_coroutine_threadsafe(client.data_rpc(action, args or {}), loop)
-        return fut.result(timeout=125)
+        return fut.result(timeout=self._RPC_TIMEOUT)
 
     def _rpc_safe(self, action: str, args: Optional[Dict[str, Any]], default: Any):
+        if self._on_server_thread():
+            self.logger.debug(f"跳过主线程 data_rpc({action})，返回默认值")
+            return default
         try:
             return self._rpc(action, args)
         except Exception as e:

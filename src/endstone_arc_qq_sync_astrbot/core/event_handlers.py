@@ -10,6 +10,7 @@ from endstone.event import (
     PlayerJoinEvent,
     PlayerQuitEvent,
 )
+import threading
 
 
 class EventHandlers:
@@ -44,15 +45,25 @@ class EventHandlers:
 
             self.logger.info(f"玩家 {player_name} (XUID: {player_xuid}) 加入游戏")
 
-            existing_player = self.plugin.data_manager.get_player_by_xuid(player_xuid)
-            if existing_player and existing_player.get("name") != player_name:
-                old_name = existing_player.get("name")
-                self.plugin.data_manager.update_player_name(old_name, player_name, player_xuid)
+            plugin = self.plugin
+            xuid = player_xuid
+            name = player_name
+
+            def _sync_name():
+                try:
+                    existing_player = plugin.data_manager.get_player_by_xuid(xuid)
+                    if existing_player and existing_player.get("name") != name:
+                        old_name = existing_player.get("name")
+                        plugin.data_manager.update_player_name(old_name, name, xuid)
+                except Exception as rpc_err:
+                    self.logger.warning(f"进服后台同步玩家名失败: {rpc_err}")
+
+            threading.Thread(
+                target=_sync_name, daemon=True, name="QQSync-JoinRPC"
+            ).start()
 
             display_name = self._resolve_display_name(player)
             # Delay 1 tick so ARCCore can update session_count / playtime first.
-            plugin = self.plugin
-            name = player_name
 
             def _send_join():
                 plugin.api_send_event("join", display_name, name)

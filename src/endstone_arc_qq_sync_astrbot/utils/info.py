@@ -3,7 +3,22 @@ import platform
 import psutil
 import subprocess
 
+try:
+    psutil.cpu_percent(interval=None)
+    _cpu_percent_primed = True
+except Exception:
+    pass
+
+
 def get_cpu_name():
+    global _cpu_name_cache
+    if _cpu_name_cache is not None:
+        return _cpu_name_cache
+    _cpu_name_cache = _read_cpu_name()
+    return _cpu_name_cache
+
+
+def _read_cpu_name():
     if sys.platform.startswith("win"):
         try:
             # 优先使用 PowerShell 获取 CPU 名称
@@ -51,6 +66,24 @@ def get_cpu_name():
 
 def get_cpu_max_freq():
     """获取CPU最大频率"""
+    global _cpu_max_freq_cache
+    if _cpu_max_freq_cache is not None:
+        return _cpu_max_freq_cache
+    _cpu_max_freq_cache = _read_cpu_max_freq()
+    return _cpu_max_freq_cache
+
+
+def _sample_cpu_percent():
+    """非阻塞 CPU 使用率：首次调用只做基准采样，之后用差值。"""
+    global _cpu_percent_primed
+    usage = psutil.cpu_percent(interval=None)
+    if not _cpu_percent_primed:
+        _cpu_percent_primed = True
+        return max(0.0, float(usage or 0.0))
+    return max(0.0, float(usage or 0.0))
+
+
+def _read_cpu_max_freq():
     if sys.platform.startswith("win"):
         try:
             # 使用 PowerShell 获取 CPU 最大频率
@@ -144,7 +177,7 @@ def get_system_info():
     cpu_model = get_cpu_name()
     cpu_max_freq = get_cpu_max_freq()
     cpu_freq = psutil.cpu_freq()
-    cpu_usage = psutil.cpu_percent(interval=1)
+    cpu_usage = _sample_cpu_percent()
     # 确保CPU使用率不显示负数
     cpu_usage = max(0, cpu_usage)
     mem = psutil.virtual_memory()
@@ -200,7 +233,7 @@ def get_system_info_dict():
     cpu_model = get_cpu_name()
     cpu_max_freq = get_cpu_max_freq()
     cpu_freq = psutil.cpu_freq()
-    cpu_usage = psutil.cpu_percent(interval=1)
+    cpu_usage = _sample_cpu_percent()
     cpu_usage = max(0, cpu_usage)
     mem = psutil.virtual_memory()
     
