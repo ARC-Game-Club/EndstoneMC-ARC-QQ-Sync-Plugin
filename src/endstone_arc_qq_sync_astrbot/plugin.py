@@ -190,10 +190,10 @@ class ArcQQSyncAstrbot(Plugin):
             else:
                 # 玩家未绑定，显示绑定表单（可选绑定，不强制）
                 player.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.YELLOW}您尚未绑定QQ，绑定后可与QQ群互通。{ColorFormat.RESET}")
-                self.server.scheduler.run_task(
-                    self,
-                    lambda p=player: self.ui_manager.show_qq_binding_form(p) if self.is_valid_player(p) else None,
-                    delay=5
+                self.run_player_task(
+                    player,
+                    self.ui_manager.show_qq_binding_form,
+                    delay=5,
                 )
             
             return True
@@ -203,16 +203,39 @@ class ArcQQSyncAstrbot(Plugin):
                 sender.send_message(f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.RED}命令执行出错，请重试！{ColorFormat.RESET}")
             return False
 
+    def _resolve_online_player(self, xuid: str = "", name: str = ""):
+        """从 online_players 重取活对象；不触碰可能已销毁的旧 Player 引用。"""
+        xuid_s = str(xuid or "").strip()
+        if xuid_s:
+            for p in self.server.online_players or []:
+                if str(getattr(p, "xuid", "")) == xuid_s:
+                    return p
+        name_s = str(name or "").strip()
+        if name_s:
+            try:
+                return self.server.get_player(name_s)
+            except Exception:
+                return None
+        return None
+
+    def run_player_task(self, player, fn, delay: int = 0):
+        """调度仅对仍在线玩家执行的回调；闭包只存 xuid/name。"""
+        xuid = str(getattr(player, "xuid", "") or "").strip()
+        name = str(getattr(player, "name", "") or "").strip()
+
+        def _wrapped() -> None:
+            p = self._resolve_online_player(xuid, name)
+            if p is None:
+                return
+            fn(p)
+
+        return self.server.scheduler.run_task(self, _wrapped, delay=delay)
+
     def is_valid_player(self, player) -> bool:
-        """检查玩家对象是否有效且在线"""
-        try:
-            return (player and
-                    hasattr(player, "send_message") and
-                    hasattr(player, "name") and
-                    hasattr(player, "xuid") and
-                    getattr(player, "is_online", True))
-        except Exception:
-            return False
+        """检查玩家是否仍在线（通过 xuid/name 重取，不依赖旧 Player 引用）。"""
+        xuid = str(getattr(player, "xuid", "") or "").strip()
+        name = str(getattr(player, "name", "") or "").strip()
+        return self._resolve_online_player(xuid, name) is not None
 
     @property
     def server_name(self) -> str:

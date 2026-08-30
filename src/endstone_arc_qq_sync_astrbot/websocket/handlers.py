@@ -745,15 +745,22 @@ async def _handle_group_command(
                                     f"群内 /绑定 成功: 角色 {target_player_name} <- QQ {qq_str}"
                                 )
 
+                                notify_name = target_player_name
+                                notify_xuid = str(player_xuid or "").strip()
+
                                 def notify_bound_player():
                                     try:
-                                        if target_player_obj and _plugin_instance.is_valid_player(target_player_obj):
-                                            target_player_obj.send_message(
-                                                f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.GREEN}[成功] QQ绑定成功！{ColorFormat.RESET}"
-                                            )
-                                            target_player_obj.send_message(
-                                                f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.AQUA}您的QQ {qq_str} 已与游戏账号绑定{ColorFormat.RESET}"
-                                            )
+                                        p = _plugin_instance._resolve_online_player(
+                                            notify_xuid, notify_name
+                                        )
+                                        if p is None:
+                                            return
+                                        p.send_message(
+                                            f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.GREEN}[成功] QQ绑定成功！{ColorFormat.RESET}"
+                                        )
+                                        p.send_message(
+                                            f"{ColorFormat.GRAY}[ARC QQ Sync] {ColorFormat.AQUA}您的QQ {qq_str} 已与游戏账号绑定{ColorFormat.RESET}"
+                                        )
                                     except Exception as notify_err:
                                         _plugin_instance.logger.error(f"通知玩家绑定成功失败: {notify_err}")
 
