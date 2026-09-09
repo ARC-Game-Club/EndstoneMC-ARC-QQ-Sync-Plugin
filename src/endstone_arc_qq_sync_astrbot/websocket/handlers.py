@@ -607,83 +607,29 @@ async def _handle_group_command(
                 if _plugin_instance:
                     _plugin_instance.logger.error(f"获取服务器性能数据失败: {e}")
         
-        # /info 命令 - 查看服务器信息
+        # /info 命令 - 查看服务器信息（单服本地格式；群内由中枢 core_rpc 聚合）
         elif cmd == "info":
             try:
-                from ..utils.time_utils import TimeUtils
-                from ..utils.info import get_system_info_dict
-                
-                online_count = len(_plugin_instance.server.online_players)
-                max_players = _plugin_instance.server.max_players
-                server_name = _plugin_instance.server_name
-                version = _plugin_instance.server.version
-                minecraft_version = _plugin_instance.server.minecraft_version
-                start_time = _plugin_instance.server.start_time
-                
-                # 获取插件统计信息
-                total_bindings = len(_plugin_instance.data_manager.binding_data)
-                
-                # 使用时间工具模块获取当前时间和运行时长
-                time_info = TimeUtils.get_current_time_info()
-                uptime_info = TimeUtils.calculate_uptime(start_time)
-                
-                # 获取系统硬件信息
-                system_info = get_system_info_dict()
-                
-                reply = f"ℹ️ 服务器信息:\n"
+                from ..utils.info import (
+                    build_server_info_payload,
+                    format_server_info_text,
+                )
 
-                # === 服务器基本信息 ===
-                reply += f"• 服务器名称: {server_name}\n"
-                reply += f"• Endstone版本: {version}\n"
-                reply += f"• Minecraft版本: {minecraft_version}\n"
-                reply += f"• 启动时间: {TimeUtils.format_datetime(start_time)}\n"
-                reply += f"• 当前时间: {time_info['formatted_time']} ({time_info['source']})\n"
-                reply += f"• 运行时长: {uptime_info['uptime_str']}\n"
-                reply += f"• 在线玩家: {online_count}/{max_players}\n"
-                reply += f"• 总绑定数: {total_bindings}\n"
-                
-                # === 系统硬件信息 ===
-                reply += f"\n🖥️ 系统信息:\n"
-                reply += f"• 操作系统: {system_info['os']}\n"
-                
-                # CPU信息
-                cpu_info = system_info['cpu']
-                cpu_model = cpu_info['model'][:50] + "..." if len(cpu_info['model']) > 50 else cpu_info['model']  # 限制长度
-                reply += f"• CPU型号: {cpu_model}\n"
-                
-                if cpu_info['max_freq_ghz']:
-                    reply += f"• CPU主频: {cpu_info['max_freq_ghz']:.2f}GHz"
-                    if cpu_info['current_freq_ghz']:
-                        reply += f" (当前: {cpu_info['current_freq_ghz']:.2f}GHz)"
-                    reply += "\n"
-                
-                reply += f"• CPU核心: {cpu_info['physical_cores']}核{cpu_info['logical_cores']}线程\n"
-                reply += f"• CPU使用率: {cpu_info['usage_percent']:.1f}%\n"
-                
-                # 内存信息
-                mem_info = system_info['memory']
-                reply += f"• 内存: {mem_info['used_gb']:.1f}GB / {mem_info['total_gb']:.1f}GB ({mem_info['percent']:.1f}%)\n"
-                
-                # 硬盘信息
-                disk_info = system_info['disks']
-                if disk_info:
-                    for disk in disk_info:
-                        if 'error' in disk:
-                            continue
-                        reply += f"• 硬盘({disk['device']}): {disk['used_gb']:.1f}GB / {disk['total_gb']:.1f}GB ({disk['percent']:.1f}%)\n"
-                
-                reply += f"\n• ARC QQ Sync: 运行中 ✅"
-                
+                payload = build_server_info_payload(_plugin_instance)
+                reply = format_server_info_text(payload)
             except Exception as e:
                 reply = "ℹ️ 无法获取服务器信息"
                 if _plugin_instance:
                     _plugin_instance.logger.error(f"获取服务器信息失败: {e}")
-                    # 提供基础信息作为回退
                     try:
                         online_count = len(_plugin_instance.server.online_players)
                         max_players = _plugin_instance.server.max_players
-                        reply = f"ℹ️ 服务器基础信息:\n• 在线玩家: {online_count}/{max_players}\n• ARC QQ Sync: 运行中 ✅"
-                    except:
+                        reply = (
+                            f"ℹ️ 服务器基础信息:\n"
+                            f"• 在线玩家: {online_count}/{max_players}\n"
+                            f"• ARC QQ Sync: 运行中 ✅"
+                        )
+                    except Exception:
                         reply = "ℹ️ 服务器信息获取失败"
         
         # /重启 — 在本机处理重启投票

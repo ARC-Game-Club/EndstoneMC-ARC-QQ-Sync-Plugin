@@ -6,7 +6,7 @@ Endstone 服务器端 QQ 互通插件，通过 **AstrBot 弧光 EndStone 消息�
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-green.svg)
-![Version](https://img.shields.io/badge/version-1.0.5-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.6-blue.svg)
 
 仓库：[ARC-Minecraft/EndstoneMC-ARC-QQ-Sync-Plugin](https://github.com/ARC-Minecraft/EndstoneMC-ARC-QQ-Sync-Plugin)
 
@@ -113,7 +113,7 @@ AstrBot 中枢侧需配置：`ws_port=19136`、`target_groups`、`admins`、`syn
 | `/mc help` | `/help` | 帮助信息 | 全员 |
 | `/mc list` | `/list` | 在线玩家 | 全员 |
 | `/mc tps` | `/tps` | TPS / MSPT | 全员 |
-| `/mc info` | `/info` | 服务器信息 | 全员 |
+| `/mc info` | `/info` | 服务器信息（CPU/内存/GPU；同物理机合并） | 全员 |
 | `/mc servers` | `/servers` | 查看已连接子服（可由消息中枢直接回复） | 全员 |
 | `/mc cmd [子服编号] <命令>` | `/cmd …` | 执行控制台命令 | 管理员 |
 | `/mc who <玩家名\|QQ号>` | `/who …` | 查询玩家绑定与 ARCCore 游戏统计 | 管理员 |
@@ -151,6 +151,7 @@ AstrBot 中枢侧需配置：`ws_port=19136`、`target_groups`、`admins`、`syn
 
 ## 更新日志
 
+- **1.0.6**：修复 `/info` 硬件缓存未初始化导致回退基础信息；新增 GPU / host 指纹；`core_rpc` 增加 `server_info` 供中枢同物理机合并。需中枢 ≥ 1.7.12。
 - **1.0.5**：修复定时任务 purecall 崩服——`/bindqq` 延迟弹窗、绑定 RPC 回调、群内绑定成功通知均改为按 xuid/name 重取在线玩家，不再对可能已销毁的 `Player` 做 `is_valid_player` 检查。
 - **1.0.4**：主线程不再同步等待 Hub `data_rpc`（超时 3s，进服/绑定改后台）；聊天统计缓存；`/info` CPU 非阻塞采样。
 - **1.0.3**：新增 Hub → 本插件 `core_rpc`（`player_basic_info`），供中枢绑定解析跨服玩家库。需中枢 ≥ 1.7.4。

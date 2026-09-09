@@ -391,6 +391,12 @@ class HubClient:
                     self._run_core_rpc_player_basic_info,
                     args,
                 )
+            elif action == "server_info":
+                result = await loop.run_in_executor(
+                    None,
+                    self._run_core_rpc_server_info,
+                    args,
+                )
             else:
                 result = {"ok": False, "error": f"未知 core_rpc 动作: {action}"}
         except Exception as error:
@@ -414,6 +420,17 @@ class HubClient:
         return self.plugin.run_on_server_thread(
             lambda: self.plugin.lookup_player_basic_info(player_name)
         )
+
+    def _run_core_rpc_server_info(self, args: dict) -> dict:
+        """Collect structured /info payload for Hub same-host merging."""
+        from ..utils.info import build_server_info_payload
+
+        try:
+            return self.plugin.run_on_server_thread(
+                lambda: build_server_info_payload(self.plugin)
+            )
+        except Exception as error:
+            return {"ok": False, "error": str(error)}
 
     async def _handle_restart_vote_execute_stop(self) -> None:
         """Hub 投票通过后在本机执行 stop。"""
