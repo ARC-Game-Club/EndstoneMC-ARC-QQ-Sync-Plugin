@@ -63,12 +63,15 @@ class EventHandlers:
             ).start()
 
             display_name = self._resolve_display_name(player)
-            # Delay 1 tick so ARCCore can update session_count / playtime first.
+            # 等 ARCCore 向主服上报进服次数后再拉进度展示（从服含同步 RTT）。
 
             def _send_join():
+                cached = getattr(plugin, "_stats_cache", None)
+                if isinstance(cached, dict):
+                    cached.pop(name, None)
                 plugin.api_send_event("join", display_name, name)
 
-            plugin.server.scheduler.run_task(plugin, _send_join, delay=1)
+            plugin.server.scheduler.run_task(plugin, _send_join, delay=40)
 
         except Exception as e:
             self.logger.error(f"处理玩家加入事件失败: {e}")
@@ -88,9 +91,13 @@ class EventHandlers:
             name = player_name
 
             def _send_quit():
+                cached = getattr(plugin, "_stats_cache", None)
+                if isinstance(cached, dict):
+                    cached.pop(name, None)
                 plugin.api_send_event("quit", display_name, name)
 
-            plugin.server.scheduler.run_task(plugin, _send_quit, delay=1)
+            # 等 ARCCore 把本次会话时长上报主服后再展示累计时长
+            plugin.server.scheduler.run_task(plugin, _send_quit, delay=40)
 
         except Exception as e:
             self.logger.error(f"处理玩家离开事件失败: {e}")
