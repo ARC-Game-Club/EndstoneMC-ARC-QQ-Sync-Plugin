@@ -468,9 +468,15 @@ class HubClient:
             )
             if silent:
                 return
+            replies = [reply for reply in replies if reply]
+            # New hub (>= 1.7.14) aggregates replies per request_id into one
+            # QQ message; fall back to per-message api_send otherwise.
+            request_id = str(data.get("request_id") or "")
+            if request_id:
+                await self.send_command_result(request_id, replies)
+                return
             for reply in replies:
-                if reply:
-                    await self.send_api_message(reply)
+                await self.send_api_message(reply)
         except Exception as e:
             self.logger.error(f"处理转发命令失败: {e}")
 
@@ -566,6 +572,30 @@ class HubClient:
             await self.ws.send(json.dumps({"type": "api_send", "text": text}))
         except Exception as e:
             self.logger.error(f"通过 Hub 发送消息失败: {e}")
+
+    async def send_command_result(self, request_id: str, replies: list):
+        """通过 Hub 回传转发命令的全部回复，供中枢合并为一条 QQ 消息。
+
+        :param request_id: Hub 下发的 command_forward 请求 ID
+        :param replies: 命令产生的全部文本回复
+        """
+        if not self.ws:
+            self.logger.warning("Hub 未连接，无法回传命令结果")
+            return
+
+        try:
+            await self.ws.send(
+                json.dumps(
+                    {
+                        "type": "command_result",
+                        "request_id": request_id,
+                        "replies": [str(text) for text in replies],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        except Exception as e:
+            self.logger.error(f"回传命令结果失败: {e}")
 
     def stop(self):
         """停止客户端"""

@@ -350,11 +350,15 @@ def _resolve_target(input_str: str):
         if target:
             return target, "QQ (History)"
     
-    # 2. 尝试作为玩家名查找
-    # 检查是否在数据中有记录
-    if input_str in _plugin_instance.data_manager.binding_data:
+    # 2. 尝试作为玩家名查找（大小写不敏感）
+    binding = getattr(_plugin_instance.data_manager, "binding_data", None) or {}
+    if input_str in binding:
         return input_str, "Name"
-            
+    lowered = input_str.lower()
+    for name in binding:
+        if str(name).lower() == lowered:
+            return str(name), "Name"
+
     return None, None
 
 

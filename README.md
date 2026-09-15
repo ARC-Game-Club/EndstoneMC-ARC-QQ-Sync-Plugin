@@ -6,7 +6,7 @@ Endstone 服务器端 QQ 互通插件，通过 **AstrBot 弧光 EndStone 消息�
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-green.svg)
-![Version](https://img.shields.io/badge/version-1.0.7-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.8-blue.svg)
 
 仓库：[ARC-Game-Club/EndstoneMC-ARC-QQ-Sync-Plugin](https://github.com/ARC-Game-Club/EndstoneMC-ARC-QQ-Sync-Plugin)
 
@@ -151,6 +151,7 @@ AstrBot 中枢侧需配置：`ws_port=19136`、`target_groups`、`admins`、`syn
 
 ## 更新日志
 
+- **1.0.8**：`command_forward` 携带 `request_id` 时改为单条 `command_result` 汇总回传全部回复，供中枢把多子服 `/mc list` 等输出合并成一条 QQ 消息；无 `request_id` 时保持逐条 `api_send` 兼容旧中枢。需中枢 ≥ 1.7.14。
 - **1.0.7**：进退服 QQ 播报延迟到 40 tick，并清除时长缓存，等待 ARCCore 向主服上报后再展示次数/时长。
 - **1.0.6**：修复 `/info` 硬件缓存未初始化导致回退基础信息；新增 GPU / host 指纹；`core_rpc` 增加 `server_info` 供中枢同物理机合并。需中枢 ≥ 1.7.12。
 - **1.0.5**：修复定时任务 purecall 崩服——`/bindqq` 延迟弹窗、绑定 RPC 回调、群内绑定成功通知均改为按 xuid/name 重取在线玩家，不再对可能已销毁的 `Player` 做 `is_valid_player` 检查。
