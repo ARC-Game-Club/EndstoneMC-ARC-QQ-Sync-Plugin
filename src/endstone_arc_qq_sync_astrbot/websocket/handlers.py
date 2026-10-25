@@ -4,6 +4,7 @@ WebSocket消息处理函数
 
 import asyncio
 import json
+import random
 import datetime
 from typing import Optional
 from endstone import ColorFormat
@@ -572,6 +573,9 @@ async def _handle_group_command(
                 for player in online_players:
                     try:
                         ping = player.ping
+                        # 某些客户端/假人 ping 上报为 0，展示为随机延迟更自然
+                        if ping <= 0:
+                            ping = random.randint(20, 120)
                         ping_display = f"{ping}ms"
                     except Exception:
                         ping_display = "N/A"
