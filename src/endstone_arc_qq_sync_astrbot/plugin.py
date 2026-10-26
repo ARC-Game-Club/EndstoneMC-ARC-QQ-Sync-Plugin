@@ -306,7 +306,8 @@ class ArcQQSyncAstrbot(Plugin):
     def api_send_event(self, event_type: str, display_name: str,
                        raw_player_name: str, message: str = "",
                        source_server_name: str = None,
-                       source_server_id: str = None) -> bool:
+                       source_server_id: str = None,
+                       force_text: bool = False) -> bool:
         """
         事件驱动 API — 由 ARCCore 等外部插件调用。
 
@@ -327,6 +328,13 @@ class ArcQQSyncAstrbot(Plugin):
         )
         if not formatted:
             return False
+
+        # force_text：跳过结构化通道、直接发本地排版文本。中枢按自己的
+        # 玩家档案排进服消息（"首次进入服务器"）——对没有 QQ 绑定档案的
+        # 调用方（如假人插件）永远显示"首次"；本地排版读 arc_core 统计，
+        # 是准确的。退服不受影响（中枢直接用我们传的 playtime_str）。
+        if force_text:
+            return self._send_text_to_qq(formatted)
 
         if self._send_structured_game_event(
             event_type, display_name, raw_player_name, message,
