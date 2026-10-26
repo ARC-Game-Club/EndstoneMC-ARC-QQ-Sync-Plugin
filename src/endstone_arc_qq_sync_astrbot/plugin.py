@@ -307,7 +307,8 @@ class ArcQQSyncAstrbot(Plugin):
                        raw_player_name: str, message: str = "",
                        source_server_name: str = None,
                        source_server_id: str = None,
-                       force_text: bool = False) -> bool:
+                       force_text: bool = False,
+                       xuid: str = "") -> bool:
         """
         事件驱动 API — 由 ARCCore 等外部插件调用。
 
@@ -324,7 +325,7 @@ class ArcQQSyncAstrbot(Plugin):
 
         formatted = self._format_event_message(
             event_type, display_name, raw_player_name, message,
-            source_server_name=server_label,
+            source_server_name=server_label, xuid=xuid,
         )
         if not formatted:
             return False
@@ -338,7 +339,7 @@ class ArcQQSyncAstrbot(Plugin):
 
         if self._send_structured_game_event(
             event_type, display_name, raw_player_name, message,
-            source_server_name=server_label,
+            source_server_name=server_label, xuid=xuid,
         ):
             return True
 
@@ -351,6 +352,7 @@ class ArcQQSyncAstrbot(Plugin):
         raw_player_name: str,
         message: str,
         source_server_name: str = None,
+        xuid: str = "",
     ) -> bool:
         """
         通过消息中心客户端发送 type=game_event。
@@ -367,7 +369,7 @@ class ArcQQSyncAstrbot(Plugin):
         is_remote = bool(source_server_name and source_server_name != self.server_name)
         stats = None
         if not is_remote:
-            stats = self.get_player_stats(raw_player_name)
+            stats = self.get_player_stats(raw_player_name, xuid=xuid)
 
         session_count = None
         playtime_str = ""
@@ -401,7 +403,7 @@ class ArcQQSyncAstrbot(Plugin):
         except Exception:
             return False
 
-    def get_player_stats(self, raw_player_name: str) -> dict:
+    def get_player_stats(self, raw_player_name: str, xuid: str = "") -> dict:
         """
         获取玩家统计信息 API — 委托 ARCCore。
 
@@ -428,7 +430,14 @@ class ArcQQSyncAstrbot(Plugin):
         try:
             arc = self.server.plugin_manager.get_plugin("arc_core")
             if arc is not None and hasattr(arc, "api_get_player_playtime"):
-                stats = arc.api_get_player_playtime(raw_player_name=name) or empty
+                # xuid 直查优先：假人在线时"按名解析"会命中在线列表拿到
+                # 空 xuid（永远查不到统计，进服消息就成"首次进入服务器"）；
+                # 调用方（假人插件）带着合成 xuid 来的，直接用它。
+                if str(xuid or "").strip():
+                    stats = arc.api_get_player_playtime(
+                        raw_player_name=name, xuid=str(xuid).strip()) or empty
+                else:
+                    stats = arc.api_get_player_playtime(raw_player_name=name) or empty
             else:
                 stats = empty
         except Exception as e:
@@ -531,7 +540,8 @@ class ArcQQSyncAstrbot(Plugin):
 
     def _format_event_message(self, event_type: str, display_name: str,
                               raw_player_name: str, message: str,
-                              source_server_name: str = None) -> str:
+                              source_server_name: str = None,
+                              xuid: str = "") -> str:
         """根据事件类型构建发往 QQ 群的消息（带服务器前缀）。"""
         server_name = (source_server_name or "").strip() or self.server_name
         # 去掉 display_name 中的 § 颜色码（QQ 群是纯文本）
@@ -541,7 +551,7 @@ class ArcQQSyncAstrbot(Plugin):
         is_remote = bool(source_server_name and source_server_name != self.server_name)
         stats = None
         if not is_remote:
-            stats = self.get_player_stats(raw_player_name)
+            stats = self.get_player_stats(raw_player_name, xuid=xuid)
 
         if event_type == "join":
             session_count = stats.get("session_count", 0) if stats else None
