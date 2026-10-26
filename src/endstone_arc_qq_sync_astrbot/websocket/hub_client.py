@@ -320,6 +320,16 @@ class HubClient:
                     player.send_message(game_message)
             except Exception as e:
                 self.logger.error(f"发送 QQ 消息到游戏失败: {e}")
+            # 群消息也给假人听一听：arc_fake_player 的公屏分诊
+            # （群里 @假人 = 点名必回，回复经 api_send_event 回群）。
+            # 没装假人插件/旧版本时静默跳过。
+            try:
+                afp = self.plugin.server.plugin_manager.get_plugin(
+                    "arc_fake_player")
+                if afp and callable(getattr(afp, "api_hear_chat", None)):
+                    afp.api_hear_chat(display_name, message)
+            except Exception:
+                pass
 
         self.plugin.server.scheduler.run_task(self.plugin, send, delay=1)
 
